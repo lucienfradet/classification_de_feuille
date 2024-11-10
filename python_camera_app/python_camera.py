@@ -3,7 +3,7 @@ import pygame
 import time
 import os
 import random
-# max version
+# main version
 # Initialize Pygame
 pygame.init()
 
