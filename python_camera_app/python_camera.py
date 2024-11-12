@@ -3,6 +3,7 @@ import pygame
 import time
 import os
 import random
+import RPi.GPIO as GPIO  # Import the GPIO library
 # main version
 # Initialize Pygame
 pygame.init()
@@ -11,12 +12,21 @@ pygame.init()
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 screen_width, screen_height = screen.get_size()
 
+# Set up GPIO
+BUTTON_PIN = 4
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Button connected to GPIO 4
+
 # Function to find the first available video device
 def find_camera_device():
+    desired_width=640
+    desired_height=480
     for i in range(5):
         cap = cv2.VideoCapture(i)
         if cap.isOpened():
             print(f"Using camera device {i}")
+            #cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)
+            #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, desired_height)
             return cap
         cap.release()
     print("Error: No available camera devices found.")
@@ -28,8 +38,11 @@ cap = find_camera_device()
 # Get the dimensions of the video stream (frame size)
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-RESIZE_RATIO = 1.8
+RESIZE_RATIO = 0.2
 image_width, image_height = int(frame_width * RESIZE_RATIO), int(frame_height * RESIZE_RATIO)
+
+# Flag to control the video feed display
+button_pressed = False
 
 # Function to display the frame centered
 def display_centered_frame(frame):
@@ -73,11 +86,11 @@ def display_image(img_path, duration=3):
 
 # Function to display a random word
 def display_random_word():
-    words = ["Érable", "Frêne", "Chêne", "Banji"]
+    words = ["Érable", "Frêne", "Chêne", "Ginko"]
     random_word = random.choice(words)
 
     # Render the random word on screen
-    font = pygame.font.Font(None, 800)  # You can adjust the size here
+    font = pygame.font.Font(None, 150)  # You can adjust the size here
     text_surface = font.render(random_word, True, (255, 255, 255))  # White text
     text_rect = text_surface.get_rect(center=(screen_width // 2, screen_height // 2))
 
@@ -88,36 +101,45 @@ def display_random_word():
     # Display the word for 3 seconds
     time.sleep(3)
 
+# Define your callback function for button press
+def button_callback(frame):
+    global button_pressed
+    button_pressed = True
+
+
+# Set up event detection on button press
+GPIO.add_event_detect(BUTTON_PIN, GPIO.RISING, callback=button_callback, bouncetime=200)
+
 try:
     running = True
     while running:
+
         # Capture frame-by-frame
         ret, frame = cap.read()
         if not ret:
             print("Failed to grab frame.")
             break
 
-        # Display the frame centered without resizing
-        display_centered_frame(frame)
+        if not button_pressed:
+            # Display the frame centered without resizing
+            display_centered_frame(frame)
+        else:
+            # Capture and display the photo for 1 second
+            img_path = capture_image(frame)
+            display_image(img_path, duration=1)
+            
+            # Hide the video and display a random word for 3 seconds
+            display_random_word()
+            button_pressed = False
 
         # Check for events
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    # Capture and display the photo for 1 second
-                    img_path = capture_image(frame)
-                    display_image(img_path, duration=1)
-                    
-                    # Hide the video and display a random word for 3 seconds
-                    display_random_word()
-
-                    # After displaying the word, return to the video feed
-                    display_centered_frame(frame)
-
-                elif event.key == pygame.K_ESCAPE:  # Quit on 'ESC'
+                if event.key == pygame.K_ESCAPE:  # Quit on 'ESC'
                     running = False
 
 finally:
     # Release resources
     cap.release()
     pygame.quit()
+    GPIO.cleanup()  # Clean up GPIO settings
