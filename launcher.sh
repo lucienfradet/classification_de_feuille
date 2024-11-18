@@ -4,5 +4,5 @@
 
 cd /
 cd home/lucienfradet/classification_de_feuille/
-sudo python3 python_camera_with_runner.py modelfile_download.eim
+sudo python3 python_camera_with_runner.py modelfile_v2.eim
 cd /
